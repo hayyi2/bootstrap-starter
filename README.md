@@ -8,5 +8,5 @@ Lorem ipsum dolor sit amet.
 
 ## Task
 
-- [-] Gulp bootstrap
+- [x] Gulp bootstrap
 - [ ] Template Engine
