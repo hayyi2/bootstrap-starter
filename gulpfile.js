@@ -5,6 +5,9 @@ const cssnano = require('gulp-cssnano')
 const uglify = require('gulp-uglify')
 const sourcemaps = require('gulp-sourcemaps');
 const browserSync = require('browser-sync').create();
+const nunjucksRender = require('gulp-nunjucks-render');
+const htmlbeautify = require('gulp-html-beautify');
+const data = require('gulp-data');
 
 function style() {
     return gulp
@@ -29,14 +32,34 @@ function js() {
         .pipe(browserSync.stream())
 }
 
+function nunjucks() {
+    return gulp
+        .src([
+            './src/templates/**/*.html', 
+            '!./src/templates/components/*.html', 
+            '!./src/templates/layouts/*.html'
+        ])
+        .pipe(data(function () {
+            delete require.cache[require.resolve('./src/data.json')];
+            return require('./src/data.json')
+        }))
+        .pipe(nunjucksRender({
+            path: ['./src/templates']
+        }))
+        .pipe(htmlbeautify())
+        .pipe(gulp.dest('dist'))
+        .pipe(browserSync.stream())
+}
+
 function watch() {
     browserSync.init({
         server:{
-            baseDir: './'
+            baseDir: ['./dist', './src/static']
         }
     })
     gulp.watch('./src/scss/**/*.scss', style)
-    gulp.watch('./**/*.html').on('change', browserSync.reload)
+    gulp.watch('./src/js/**/*.js', js)
+    gulp.watch(['./src/**/*.html', './src/data.json'], nunjucks).on('change', browserSync.reload)
 }
 
 function copy_bootstrap_js() {
@@ -53,11 +76,20 @@ function copy_bootstrap_license() {
         .pipe(gulp.dest('./dist/vendors/bootstrap/'))
 }
 
+function copy_static() {
+    return gulp.src([
+            './src/static/**/*.*',
+        ])
+        .pipe(gulp.dest('./dist'))
+}
+
 const vendors = [copy_bootstrap_js, copy_bootstrap_license]
 
 exports.style = style
 exports.js = js
+exports.nunjucks = nunjucks
+exports.copy_static = copy_static
 exports.vendors = gulp.series(vendors)
 
-exports.watch = gulp.series(style, js, ...vendors, watch)
-exports.build = gulp.series(style, js, ...vendors)
+exports.watch = gulp.series(style, js, nunjucks, ...vendors, watch)
+exports.build = gulp.series(style, js, nunjucks, ...vendors, copy_static)

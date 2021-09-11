@@ -10,3 +10,4 @@ Lorem ipsum dolor sit amet.
 
 - [x] Gulp bootstrap
 - [ ] Template Engine
+- [ ] Collection
