@@ -8,7 +8,9 @@ const browserSync = require('browser-sync').create();
 const nunjucksRender = require('gulp-nunjucks-render');
 const htmlbeautify = require('gulp-html-beautify');
 const data = require('gulp-data');
-const merge = require("merge-stream");
+const merge = require("merge-stream"); 
+const fs = require('fs')
+const yamlFront = require('yaml-front-matter');
 
 const config = require('./config');
 
@@ -35,25 +37,98 @@ function js() {
         .pipe(browserSync.stream())
 }
 
+function get_collections_data() {
+    delete require.cache[require.resolve(config.collection_config)];
+    collection_config = require(config.collection_config)
+    result = {}
+    for (const [key, args] of Object.entries(collection_config)) {
+        result[key] = { ...config.collection_default, ...args }
+        result[key].use_file = false
+        try {
+            fs.lstatSync(config.collections + key).isDirectory()
+            result[key].use_file = true
+        } catch (e) {
+            // console.log(e)
+        }
+        if (result[key].use_file){
+            result[key].items = []
+            files = fs.readdirSync(config.collections + key);
+            files.forEach(file => {
+                slug = file.split('.')[0]
+                const content = fs.readFileSync(config.collections + key + '/' + file, 'utf8')
+                result[key].items.push({
+                    ...result[key].item_default, 
+                    ...yamlFront.loadFront(content),
+                    slug,
+                    url: key + "/" + slug + '.html'
+                })
+            });
+        }
+        if (result[key].order_by){
+            result[key].items.sort((a, b) => (a[result[key].order_by] > b[result[key].order_by]) ? 1 : -1)
+        }
+        
+    }
+    
+    return result
+}
 function templates() {
-    return gulp
-        .src([
-            config.templates + '**/*.html',
-            '!' + config.templates+'_**/*',
-        ])
-        .pipe(data(function () {
-            delete require.cache[require.resolve(config.template_config)];
-            return {
-                ...require(config.template_config), 
-                vendor_dir: config.vendor_dir
-            }
-        }))
-        .pipe(nunjucksRender({
-            path: [config.templates]
-        }))
-        .pipe(htmlbeautify())
-        .pipe(gulp.dest(config.dist))
-        .pipe(browserSync.stream())
+    templates_data = {
+        base_url: config.base_url,
+        vendor_dir: config.vendor_dir,
+    }
+    list_merge = []
+    data_collections = get_collections_data()
+    collection_items = {}
+    for (const [key, args] of Object.entries(data_collections)) {
+        collection_items[key] = []
+        for (const item of args.items) {
+            collection_items[key].push(item)
+        }
+    }
+    for (const [key, args] of Object.entries(data_collections)) {
+        if (args.use_file && args.layout) {
+            args.items.forEach(item => {
+                list_merge.push(
+                    gulp
+                        .src(config.templates + args.layout)
+                        .pipe(rename(function (path) {
+                            path.basename = item.slug;
+                        }))
+                        .pipe(nunjucksRender({
+                            path: [config.templates],
+                            data: {
+                                ...templates_data,
+                                ...item,
+                            }
+                        }))
+                        .pipe(htmlbeautify())
+                        .pipe(gulp.dest(config.dist + key))
+                )
+            });
+        }
+    }
+    list_merge.push(
+        gulp
+            .src([
+                config.templates + '**/*.html',
+                '!' + config.templates+'_**/*',
+            ])
+            .pipe(data(function () {
+                delete require.cache[require.resolve(config.template_config)];
+                return {
+                    ...templates_data,
+                    ...require(config.template_config),
+                    collections: collection_items,
+                }
+            }))
+            .pipe(nunjucksRender({
+                path: [config.templates]
+            }))
+            .pipe(htmlbeautify())
+            .pipe(gulp.dest(config.dist))
+    )
+    return merge(list_merge)
 }
 
 function watch() {
@@ -71,8 +146,12 @@ function watch() {
     })
     gulp.watch(config.src + 'scss/**/*.scss', style)
     gulp.watch(config.src + 'js/**/*.js', js)
-    gulp.watch([config.src + '**/*.html', config.template_config], templates)
-        .on('change', browserSync.reload)
+    gulp.watch([
+        config.src + '**/*.html', 
+        config.template_config,
+        config.collections + '**/*.md',
+        config.collection_config,
+    ], templates).on('change', browserSync.reload)
 }
 
 function copy_vendors() {
@@ -101,6 +180,11 @@ exports.js = js
 exports.templates = templates
 exports.copy_static = copy_static
 exports.copy_vendors = copy_vendors
+
+exports.log_collection_data = function(cl) {
+    console.log(get_collections_data())
+    cl()
+}
 
 exports.watch = gulp.series(style, js, templates, watch)
 exports.build = gulp.series(style, js, templates, copy_vendors, copy_static)

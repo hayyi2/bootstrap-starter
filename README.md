@@ -11,4 +11,4 @@ Lorem ipsum dolor sit amet.
 - [x] Gulp bootstrap
 - [x] Template Engine
 - [x] Rapi rapi
-- [ ] Collection
+- [x] Collection

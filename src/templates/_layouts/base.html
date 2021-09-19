@@ -5,14 +5,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     
-    <title>{{ title+" - " if title else "" }} {{ name }}</title>
+    <title>{{ title+" - " if title else "" }} {{ site_name }}</title>
     
-    <base href="/">
+    <base href="{{ base_url }}">
 
     <!-- <link rel="stylesheet" href="{{ vendor_dir }}bootstrap/dist/css/bootstrap.min.css"> -->
     <link rel="stylesheet" href="css/style.min.css">
 </head>
-<body class="h-100">
+<body class="bg-light">
     {% block content %}{% endblock %}
 
     <script src="{{ vendor_dir }}bootstrap/js/bootstrap.bundle.min.js"></script>
