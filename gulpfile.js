@@ -8,88 +8,99 @@ const browserSync = require('browser-sync').create();
 const nunjucksRender = require('gulp-nunjucks-render');
 const htmlbeautify = require('gulp-html-beautify');
 const data = require('gulp-data');
+const merge = require("merge-stream");
+
+const config = require('./config');
 
 function style() {
     return gulp
-        .src('./src/scss/**/*.scss')
+        .src(config.src + 'scss/**/*.scss')
         .pipe(sourcemaps.init({ loadMaps: true }))
         .pipe(sass())
         .pipe(cssnano())
         .pipe(rename({suffix: '.min'}))
         .pipe(sourcemaps.write('.'))
-        .pipe(gulp.dest('./dist/css'))
+        .pipe(gulp.dest(config.dist + 'css'))
         .pipe(browserSync.stream())
 }
 
 function js() {
     return gulp
-        .src('./src/js/**/*.js')
+        .src(config.src + 'js/**/*.js')
         .pipe(sourcemaps.init({ loadMaps: true }))
         .pipe(uglify())
         .pipe(rename({suffix: '.min'}))
         .pipe(sourcemaps.write('.'))
-        .pipe(gulp.dest('./dist/js'))
+        .pipe(gulp.dest(config.dist + '/js'))
         .pipe(browserSync.stream())
 }
 
-function nunjucks() {
+function templates() {
     return gulp
         .src([
-            './src/templates/**/*.html', 
-            '!./src/templates/components/*.html', 
-            '!./src/templates/layouts/*.html'
+            config.templates + '**/*.html',
+            '!' + config.templates+'_**/*',
         ])
         .pipe(data(function () {
-            delete require.cache[require.resolve('./src/data.json')];
-            return require('./src/data.json')
+            delete require.cache[require.resolve(config.template_config)];
+            return {
+                ...require(config.template_config), 
+                vendor_dir: config.vendor_dir
+            }
         }))
         .pipe(nunjucksRender({
-            path: ['./src/templates']
+            path: [config.templates]
         }))
         .pipe(htmlbeautify())
-        .pipe(gulp.dest('dist'))
+        .pipe(gulp.dest(config.dist))
         .pipe(browserSync.stream())
 }
 
 function watch() {
+    vendors_path = {}
+    config.vendors.forEach(function(item) {
+        item.files.forEach(function(file) {
+            vendors_path['/' + config.vendor_dir + file] = item.src_dir + file
+        })
+    })
     browserSync.init({
         server:{
-            baseDir: ['./dist', './src/static']
+            baseDir: [config.dist, config.static],
+            routes: vendors_path
         }
     })
-    gulp.watch('./src/scss/**/*.scss', style)
-    gulp.watch('./src/js/**/*.js', js)
-    gulp.watch(['./src/**/*.html', './src/data.json'], nunjucks).on('change', browserSync.reload)
+    gulp.watch(config.src + 'scss/**/*.scss', style)
+    gulp.watch(config.src + 'js/**/*.js', js)
+    gulp.watch([config.src + '**/*.html', config.template_config], templates)
+        .on('change', browserSync.reload)
 }
 
-function copy_bootstrap_js() {
-    return gulp.src([
-            './node_modules/bootstrap/dist/js/bootstrap.bundle.min.js',
-            './node_modules/bootstrap/dist/js/bootstrap.bundle.min.js.map',
-        ])
-        .pipe(gulp.dest('./dist/vendors/bootstrap/js'))
-}
-function copy_bootstrap_license() {
-    return gulp.src([
-            './node_modules/bootstrap/LICENSE',
-        ])
-        .pipe(gulp.dest('./dist/vendors/bootstrap/'))
+function copy_vendors() {
+    list_merge = []
+    config.vendors.forEach(function (item) {
+        item.files.forEach(function (file) {
+            list_merge.push(
+                gulp
+                    .src(item.src_dir + file)
+                    .pipe(gulp.dest(config.dist + config.vendor_dir + file))
+            )
+        })
+    })
+    return merge(list_merge)
 }
 
 function copy_static() {
     return gulp.src([
-            './src/static/**/*.*',
+            config.static+'**/*.*',
         ])
         .pipe(gulp.dest('./dist'))
 }
 
-const vendors = [copy_bootstrap_js, copy_bootstrap_license]
-
 exports.style = style
 exports.js = js
-exports.nunjucks = nunjucks
+exports.templates = templates
 exports.copy_static = copy_static
-exports.vendors = gulp.series(vendors)
+exports.copy_vendors = copy_vendors
 
-exports.watch = gulp.series(style, js, nunjucks, ...vendors, watch)
-exports.build = gulp.series(style, js, nunjucks, ...vendors, copy_static)
+exports.watch = gulp.series(style, js, templates, watch)
+exports.build = gulp.series(style, js, templates, copy_vendors, copy_static)

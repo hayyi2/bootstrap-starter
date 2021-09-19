@@ -17,10 +17,11 @@
     "gulp-sass": "^5.0.0",
     "gulp-sourcemaps": "^3.0.0",
     "gulp-uglify": "^3.0.2",
+    "merge-stream": "^2.0.0",
     "sass": "^1.39.0"
   },
   "scripts": {
-    "run": "gulp watch",
+    "dev": "gulp watch",
     "build": "gulp build"
   },
   "author": "hayyi2",
