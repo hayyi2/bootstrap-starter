@@ -158,10 +158,11 @@ function copy_vendors() {
     list_merge = []
     config.vendors.forEach(function (item) {
         item.files.forEach(function (file) {
+            file_dir = file.split('/').slice(0, -1).join('/')
             list_merge.push(
                 gulp
                     .src(item.src_dir + file)
-                    .pipe(gulp.dest(config.dist + config.vendor_dir + file))
+                    .pipe(gulp.dest(config.dist + config.vendor_dir + file_dir))
             )
         })
     })
